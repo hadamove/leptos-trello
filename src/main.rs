@@ -2,9 +2,19 @@ use leptos::html::Div;
 use leptos::*;
 use leptos_use::*;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum CardState {
+    Todo,
+    InProgress,
+    Done,
+}
+
+#[derive(Clone)]
 struct Card {
+    id: usize,
     name: String,
     description: String,
+    state: CardState,
 }
 
 #[component]
@@ -28,7 +38,9 @@ fn CardView(cx: Scope, card: Card) -> impl IntoView {
     view! { cx,
         <div
             node_ref=el
-            class=move || format!("bg-white rounded p-4 mb-4 {}", if is_dragging.get() { "shadow-lg pointer-events-none max-w-xs" } else { "" })
+            class=move || format!("bg-white rounded p-4 mb-4 {}",
+                if is_dragging.get() { "shadow-lg pointer-events-none max-w-xs min-w-[20%]" } else { "" }
+            )
             style=move || if is_dragging.get() { format!("position: fixed; {}", style.get()) } else {"".to_owned()}
         >
             <h2 class="text-lg font-bold">{card.name}</h2>
@@ -38,13 +50,15 @@ fn CardView(cx: Scope, card: Card) -> impl IntoView {
 }
 
 #[component]
-fn CardList(cx: Scope, title: String, cards: Vec<Card>) -> impl IntoView {
+fn CardList(cx: Scope, card_state: CardState, cards: Vec<Card>) -> impl IntoView {
     let el = create_node_ref::<Div>(cx);
     let is_hovered = use_element_hover(cx, el);
 
     view! { cx,
         <div class="flex-1 max-w-sm bg-gray-100 rounded p-4" node_ref=el>
-            <h1 class="text-xl font-bold mb-4 text-blue-600">{title}</h1>
+            <h1 class="text-xl font-bold mb-4 text-blue-600">
+                {format!("{:?}", card_state)}
+            </h1>
             {cards
                 .into_iter()
                 .map(|card| view! { cx, <CardView card/> })
@@ -57,58 +71,68 @@ fn CardList(cx: Scope, title: String, cards: Vec<Card>) -> impl IntoView {
 
 #[component]
 fn App(cx: Scope) -> impl IntoView {
-    let todo = vec![
-        Card {
-            name: "Groceries".to_string(),
-            description: "Buy groceries for the week and also some other goodies".to_string(),
-        },
-        Card {
-            name: "Laundry".to_string(),
-            description: "Do laundry".to_string(),
-        },
-        Card {
-            name: "Dishes".to_string(),
-            description: "Do the dishes".to_string(),
-        },
-    ];
-
-    let in_progress = vec![
-        Card {
-            name: "Homework".to_string(),
-            description: "Finish homework".to_string(),
-        },
-        Card {
-            name: "Project".to_string(),
-            description: "Work on project".to_string(),
-        },
-    ];
-
-    let done = vec![
-        Card {
-            name: "Dinner".to_string(),
-            description: "Make dinner".to_string(),
-        },
-        Card {
-            name: "Clean".to_string(),
-            description: "Clean the house".to_string(),
-        },
-    ];
+    let (cards, set_cards) = create_signal(
+        cx,
+        vec![
+            Card {
+                id: 0,
+                name: "Groceries".to_string(),
+                description: "Buy groceries for the week and also some other goodies".to_string(),
+                state: CardState::Todo,
+            },
+            Card {
+                id: 1,
+                name: "Laundry".to_string(),
+                description: "Do laundry".to_string(),
+                state: CardState::Todo,
+            },
+            Card {
+                id: 2,
+                name: "Dishes".to_string(),
+                description: "Do the dishes".to_string(),
+                state: CardState::Todo,
+            },
+            Card {
+                id: 3,
+                name: "Homework".to_string(),
+                description: "Finish homework".to_string(),
+                state: CardState::InProgress,
+            },
+            Card {
+                id: 4,
+                name: "Project".to_string(),
+                description: "Work on project".to_string(),
+                state: CardState::InProgress,
+            },
+            Card {
+                id: 5,
+                name: "Dinner".to_string(),
+                description: "Make dinner".to_string(),
+                state: CardState::Done,
+            },
+            Card {
+                id: 6,
+                name: "Clean".to_string(),
+                description: "Clean the house".to_string(),
+                state: CardState::Done,
+            },
+        ],
+    );
 
     view! { cx,
         <div class="container mx-auto px-4 py-8">
             <div class="flex gap-4">
-                <CardList
-                    title="To Do".to_string()
-                    cards=todo
-                />
-                <CardList
-                    title="In Progress".to_string()
-                    cards=in_progress
-                />
-                <CardList
-                    title="Done".to_string()
-                    cards=done
-                />
+                {[CardState::Todo, CardState::InProgress, CardState::Done]
+                    .into_iter()
+                    .map(|state|
+                        view! { cx,
+                            <CardList
+                                card_state=state
+                                cards={cards.get().into_iter().filter(|card| card.state == state).collect()}
+                            />
+                        }
+                    )
+                    .collect_view(cx)}
             </div>
         </div>
     }
