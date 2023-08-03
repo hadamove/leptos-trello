@@ -19,7 +19,78 @@ struct Card {
 }
 
 #[component]
-fn CardView(cx: Scope, card: Card) -> impl IntoView {
+fn CardWrapper(cx: Scope, card: Card) -> impl IntoView {
+    let (is_editing, set_is_editing) = create_signal(cx, false);
+
+    view! { cx,
+        {move || match is_editing.get() {
+            true => view! {cx, <CardEdit card=card.clone() set_is_editing/>},
+            false => view! {cx, <CardView card=card.clone() set_is_editing/>}
+        }}
+    }
+}
+
+#[component]
+fn CardEdit(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
+    let name_ref = create_node_ref(cx);
+    let description_ref = create_node_ref(cx);
+    let CardsContext { set_cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
+
+    view! { cx,
+        <div class="flex flex-col gap-2 bg-white rounded p-4 mb-4">
+
+            <input
+                class="border rounded px-2 text-lg font-bold"
+                value=card.name
+                node_ref=name_ref
+                size=1
+            />
+            <textarea
+                class="border rounded px-2 text-grey-600"
+                node_ref=description_ref
+                cols=1
+            >
+                {card.description}
+            </textarea>
+            <div class="flex justify-end gap-2">
+                // Save
+                <button
+                    class="bg-green-100 rounded p-1 mt-2"
+                    on:click=move |_| {
+                        let name = name_ref().unwrap().value();
+                        let description = description_ref().unwrap().value();
+
+                        let changed_card = Card {
+                            id: card.id,
+                            name,
+                            description,
+                            state: card.state,
+                        };
+
+                        set_cards.update(move |cards| {
+                            let card = cards.iter_mut().find(|card| card.id == changed_card.id).unwrap();
+                            *card = changed_card;
+                        });
+
+                        set_is_editing(false);
+                    }
+                >
+                    "️💾️"
+                </button>
+                // Discard
+                <button
+                    class="bg-red-100 rounded p-1 mt-2"
+                    on:click=move |_| set_is_editing(false)
+                >
+                    "️❌️"
+                </button>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
     let el = create_node_ref::<Div>(cx);
     let (is_dragging, set_is_dragging) = create_signal(cx, false);
 
@@ -46,13 +117,14 @@ fn CardView(cx: Scope, card: Card) -> impl IntoView {
             )
             style=move || if is_dragging.get() { format!("position: fixed; {}", style.get()) } else {"".to_owned()}
         >
-            <h2 class="text-lg font-bold">{card.name}</h2>
-            <p class="text-gray-600">{card.description}</p>
+            <h2 class="text-lg font-bold">{card.name.clone()}</h2>
+            <p class="text-gray-600">{card.description.clone()}</p>
 
             <div class="flex justify-end gap-2">
                 // Edit
                 <button
                     class="bg-blue-100 rounded p-1 mt-2"
+                    on:click=move |_| set_is_editing(true)
                 >
                     "️✏️"
                 </button>
@@ -88,7 +160,7 @@ fn CardList(cx: Scope, card_state: CardState) -> impl IntoView {
             {move || cards.get()
                 .into_iter()
                 .filter(|card| card.state == card_state)
-                .map(|card| view! { cx, <CardView card/> })
+                .map(|card| view! { cx, <CardWrapper card/> })
                 .collect_view(cx)}
 
             { move || is_hovered.get().then(|| view! { cx, <button class="bg-blue-600 text-white rounded p-2">Add</button> }) }
