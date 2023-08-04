@@ -3,14 +3,15 @@ use leptos::leptos_dom::console_log;
 use leptos::*;
 use leptos_use::*;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 enum CardState {
+    #[default]
     Todo,
     InProgress,
     Done,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Card {
     id: usize,
     name: String,
@@ -21,9 +22,10 @@ struct Card {
 #[component]
 fn CardWrapper(cx: Scope, card: Card) -> impl IntoView {
     let (is_editing, set_is_editing) = create_signal(cx, false);
+    let is_new = card.description.is_empty() && card.name.is_empty();
 
     view! { cx,
-        {move || match is_editing.get() {
+        {move || match is_editing.get() || is_new {
             true => view! {cx, <CardEdit card=card.clone() set_is_editing/>},
             false => view! {cx, <CardView card=card.clone() set_is_editing/>}
         }}
@@ -147,9 +149,31 @@ fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl In
 }
 
 #[component]
+fn NewCardPlaceholder(cx: Scope, card_state: CardState) -> impl IntoView {
+    let CardsContext { set_cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
+    view! { cx,
+        <button
+            class="border border-dashed border-gray-400 rounded hover:bg-gray-200 min-w-full"
+            on:click=move |_| {
+                set_cards.update(move |cards| {
+                    let id = cards.iter().map(|card| card.id).max().unwrap_or(0) + 1;
+                    cards.push(Card {
+                        id,
+                        state: card_state,
+                        ..Default::default()
+                    });
+                });
+            }
+        >
+            "➕"
+        </button>
+    }
+}
+
+#[component]
 fn CardList(cx: Scope, card_state: CardState) -> impl IntoView {
     let el = create_node_ref::<Div>(cx);
-    let is_hovered = use_element_hover(cx, el);
+    // let is_hovered = use_element_hover(cx, el);
     let CardsContext { cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
 
     view! { cx,
@@ -163,7 +187,8 @@ fn CardList(cx: Scope, card_state: CardState) -> impl IntoView {
                 .map(|card| view! { cx, <CardWrapper card/> })
                 .collect_view(cx)}
 
-            { move || is_hovered.get().then(|| view! { cx, <button class="bg-blue-600 text-white rounded p-2">Add</button> }) }
+            <NewCardPlaceholder card_state/>
+            // { move || is_hovered.get().then(|| view! { cx, <button class="bg-blue-600 text-white rounded p-2">Add</button> }) }
         </div>
     }
 }
@@ -224,19 +249,6 @@ fn App(cx: Scope) -> impl IntoView {
         ],
     );
     provide_context(cx, CardsContext { cards, set_cards });
-
-    // let add_card = move |card: Card| {
-    //     let mut cards = cards.get();
-    //     cards.push(card);
-    //     set_cards(cards);
-    // };
-
-    // let update_card = move |id: usize, changed_card: Card| {
-    //     let mut cards = cards.get();
-    //     let card = cards.iter_mut().find(|card| card.id == id).unwrap();
-    //     *card = changed_card;
-    //     set_cards(cards);
-    // };
 
     view! { cx,
         <div class="container mx-auto px-4 py-8">
