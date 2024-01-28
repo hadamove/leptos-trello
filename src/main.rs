@@ -21,26 +21,26 @@ struct Card {
 }
 
 #[component]
-fn CardWrapper(cx: Scope, card: Card) -> impl IntoView {
-    let (is_editing, set_is_editing) = create_signal(cx, false);
+fn CardWrapper(card: Card) -> impl IntoView {
+    let (is_editing, set_is_editing) = create_signal(false);
     // This is a dirty workaround, do not do this in production
     let is_new = card.description.is_empty() && card.name.is_empty();
 
-    view! { cx,
+    view! {
         {move || match is_editing.get() || is_new {
-            true => view! {cx, <CardEdit card=card.clone() set_is_editing/>},
-            false => view! {cx, <CardView card=card.clone() set_is_editing/>}
+            true => view! { <CardEdit card=card.clone() set_is_editing/>},
+            false => view! { <CardView card=card.clone() set_is_editing/>}
         }}
     }
 }
 
 #[component]
-fn CardEdit(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
-    let name_ref = create_node_ref(cx);
-    let description_ref = create_node_ref(cx);
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
+fn CardEdit(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
+    let name_ref = create_node_ref();
+    let description_ref = create_node_ref();
+    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
 
-    view! { cx,
+    view! {
         <div class="flex flex-col gap-2 bg-white rounded p-4 mb-4">
             <input
                 class="border rounded px-2 text-lg font-bold"
@@ -93,15 +93,15 @@ fn CardEdit(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl In
 }
 
 #[component]
-fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
-    let node_ref = create_node_ref::<Div>(cx);
-    let (is_dragging, set_is_dragging) = create_signal(cx, false);
+fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
+    let node_ref = create_node_ref::<Div>();
+
+    let (is_dragging, set_is_dragging) = create_signal(false);
     let DragAndDropContext { set_dropped_card } =
-        use_context(cx).expect("HoveringOverContext not found");
+        use_context().expect("HoveringOverContext not found");
 
     // Card dragging functionality using `leptos_use` crate, see docs for more info
     let UseDraggableReturn { style, .. } = use_draggable_with_options(
-        cx,
         node_ref,
         UseDraggableOptions::default()
             // We want to prevent dragging when clicking on "edit" and "delete" buttons
@@ -116,7 +116,7 @@ fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl In
             }),
     );
 
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
+    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
 
     let div_class = move || {
         format!(
@@ -134,7 +134,7 @@ fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl In
         false => "".to_owned(),
     };
 
-    view! { cx,
+    view! {
         <div node_ref=node_ref class=div_class style=div_style>
             <div class="pointer-events-none">
                 <h2 class="text-lg font-bold">{card.name.clone()}</h2>
@@ -167,9 +167,9 @@ fn CardView(cx: Scope, card: Card, set_is_editing: WriteSignal<bool>) -> impl In
 }
 
 #[component]
-fn NewCardPlaceholder(cx: Scope, card_state: CardState) -> impl IntoView {
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
-    view! { cx,
+fn NewCardPlaceholder(card_state: CardState) -> impl IntoView {
+    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
+    view! {
         // Add new card button
         <button
             class="border border-dashed border-gray-400 rounded hover:bg-gray-200 min-w-full"
@@ -191,10 +191,10 @@ fn NewCardPlaceholder(cx: Scope, card_state: CardState) -> impl IntoView {
 }
 
 #[component]
-fn CardList(cx: Scope, card_state: CardState, node_ref: NodeRef<Div>) -> impl IntoView {
-    let CardsContext { cards, .. } = use_context::<CardsContext>(cx).expect("Cards not found");
+fn CardList(card_state: CardState, node_ref: NodeRef<Div>) -> impl IntoView {
+    let CardsContext { cards, .. } = use_context::<CardsContext>().expect("Cards not found");
 
-    view! { cx,
+    view! {
         <div class="flex-1 max-w-sm bg-gray-100 rounded p-4" node_ref=node_ref>
             <h1 class="text-xl font-bold mb-4 text-blue-600">
                 {format!("{:?}", card_state)}
@@ -203,8 +203,8 @@ fn CardList(cx: Scope, card_state: CardState, node_ref: NodeRef<Div>) -> impl In
             {move || cards.get()
                 .into_iter()
                 .filter(|card| card.state == card_state)
-                .map(|card| view! { cx, <CardWrapper card/> })
-                .collect_view(cx)}
+                .map(|card| view! { <CardWrapper card/> })
+                .collect_view()}
 
             // Card placeholder for adding new cards to this list
             <NewCardPlaceholder card_state/>
@@ -224,14 +224,14 @@ struct DragAndDropContext {
 }
 
 #[component]
-fn App(cx: Scope) -> impl IntoView {
+fn App() -> impl IntoView {
     // Main signal containing all cards
-    let (cards, set_cards) = create_signal(cx, utils::get_dummy_data());
+    let (cards, set_cards) = create_signal(utils::get_dummy_data());
     // Signal for the card that is currently being dropped to a new list
-    let (dropped_card, set_dropped_card) = create_signal(cx, Option::<usize>::None);
+    let (dropped_card, set_dropped_card) = create_signal(Option::<usize>::None);
 
-    provide_context(cx, CardsContext { cards, set_cards });
-    provide_context(cx, DragAndDropContext { set_dropped_card });
+    provide_context(CardsContext { cards, set_cards });
+    provide_context(DragAndDropContext { set_dropped_card });
 
     // Each list has a state (Todo, InProgress, Done)
     let card_lists = [CardState::Todo, CardState::InProgress, CardState::Done];
@@ -239,17 +239,17 @@ fn App(cx: Scope) -> impl IntoView {
     // Node refs for each card list to get the hover state
     let card_list_refs = card_lists
         .iter()
-        .map(|state| (*state, create_node_ref::<Div>(cx)))
+        .map(|state| (*state, create_node_ref::<Div>()))
         .collect::<Vec<_>>();
 
     // Hover state for each card list
     let card_list_hover = card_list_refs
         .iter()
-        .map(|(state, node_ref)| (*state, use_element_hover(cx, *node_ref)))
+        .map(|(state, node_ref)| (*state, use_element_hover(*node_ref)))
         .collect::<Vec<_>>();
 
     // Drag and drop effect
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         if let Some(dropped_card) = dropped_card.get() {
             // Find the list that the card was dropped to
             let dropped_to = card_list_hover
@@ -272,18 +272,18 @@ fn App(cx: Scope) -> impl IntoView {
         }
     });
 
-    view! { cx,
+    view! {
         <div class="container mx-auto px-4 py-8">
             <div class="flex gap-4">
                 // Card lists
                 {card_list_refs.into_iter()
-                    .map(|(card_state, node_ref)| view! { cx, <CardList card_state node_ref/> })
-                    .collect_view(cx)}
+                    .map(|(card_state, node_ref)| view! { <CardList card_state node_ref/> })
+                    .collect_view()}
             </div>
         </div>
     }
 }
 
 fn main() {
-    mount_to_body(|cx| view! { cx,  <App/> });
+    mount_to_body(App);
 }
