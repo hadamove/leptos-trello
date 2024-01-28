@@ -2,8 +2,9 @@
 
 ## Setup
 
-1. Install trunk: `cargo install trunk`
+The app currently runs on nightly version of Rust, see specific version in `rust-toolchain.toml` file.
 
-2. Add `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown` so that we can compile to wasm.
+During first time setup, run `bash setup.sh` to install dependencies (`wasm-bindgen-cli` and `trunk`) and build the project and host it on `localhost:8080`.
 
-3. To compile & run the app: `trunk serve --open` and wait for compilation to finish 😇.
+Afterwards, running `trunk serve --open` will suffice.
+
