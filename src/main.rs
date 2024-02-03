@@ -34,7 +34,7 @@ fn CardWrapper(card: Card) -> impl IntoView {
 fn CardEdit(card: Card) -> impl IntoView {
     let name_ref = create_node_ref();
     let description_ref = create_node_ref();
-    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().unwrap();
 
     view! {
         <div class="flex flex-col gap-2 bg-white rounded p-4 mb-4">
@@ -86,8 +86,7 @@ fn CardView(card: Card) -> impl IntoView {
     let node_ref = create_node_ref::<Div>();
 
     let (is_dragging, set_is_dragging) = create_signal(false);
-    let DragAndDropContext { set_dropped_card } =
-        use_context().expect("HoveringOverContext not found");
+    let DragAndDropContext { dropped_card_write } = use_context().unwrap();
 
     // Card dragging functionality using `leptos_use` crate, see docs for more info
     let UseDraggableReturn { style, .. } = use_draggable_with_options(
@@ -100,28 +99,28 @@ fn CardView(card: Card) -> impl IntoView {
                 set_is_dragging(true);
             })
             .on_end(move |_| {
-                set_dropped_card(Some(card.id));
+                dropped_card_write.set(Some(card.id));
                 set_is_dragging(false);
             }),
     );
 
-    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
-
-    let div_class = move || {
-        format!(
-            "bg-white rounded p-4 mb-4 {}",
-            match is_dragging.get() {
-                true => "shadow-lg pointer-events-none max-w-xs min-w-[20%]",
-                false => "",
-            }
-        )
-    };
-
     // Set the position of the card to fixed when dragging
-    let div_style = move || match is_dragging.get() {
-        true => format!("position: fixed; {}", style.get()),
-        false => "".to_owned(),
+    let div_style = move || {
+        if is_dragging.get() {
+            format!("position: fixed; {}", style.get())
+        } else {
+            "".to_owned()
+        }
     };
+
+    // Add a shadow and pointer-events-none when dragging
+    let div_class = if is_dragging.get() {
+        "bg-white rounded p-4 mb-4 shadow-lg pointer-events-none max-w-xs min-w-[20%]"
+    } else {
+        "bg-white rounded p-4 mb-4"
+    };
+
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().unwrap();
 
     view! {
         <div node_ref=node_ref class=div_class style=div_style>
@@ -161,13 +160,14 @@ fn CardView(card: Card) -> impl IntoView {
 
 #[component]
 fn NewCardPlaceholder(card_state: CardState) -> impl IntoView {
-    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().unwrap();
     view! {
         // Add new card button
         <button
             class="border border-dashed border-gray-400 rounded hover:bg-gray-200 min-w-full"
             on:click=move |_| {
                 cards_write.update(move |cards| {
+                    // TODO: uuid
                     // Find the highest id and add 1 to it, do not do this in production
                     let next_id = cards.iter().map(|card| card.id).max().unwrap_or(0) + 1;
                     cards.push(Card {
@@ -186,7 +186,7 @@ fn NewCardPlaceholder(card_state: CardState) -> impl IntoView {
 
 #[component]
 fn CardList(card_state: CardState, node_ref: NodeRef<Div>) -> impl IntoView {
-    let CardsContext { cards, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards, .. } = use_context::<CardsContext>().unwrap();
 
     view! {
         <div class="flex-1 max-w-sm bg-gray-100 rounded p-4" node_ref=node_ref>
@@ -223,7 +223,7 @@ fn update_card(cards_write: WriteSignal<Vec<Card>>, id: usize, f: impl Fn(&mut C
 
 #[derive(Clone)]
 struct DragAndDropContext {
-    set_dropped_card: WriteSignal<Option<usize>>,
+    dropped_card_write: WriteSignal<Option<usize>>,
 }
 
 #[component]
@@ -231,22 +231,23 @@ fn App() -> impl IntoView {
     // Main signal containing all cards
     let (cards, cards_write) = create_signal(utils::get_dummy_data());
     // Signal for the card that is currently being dropped to a new list
-    let (dropped_card, set_dropped_card) = create_signal(Option::<usize>::None);
+    let (dropped_card, dropped_card_write) = create_signal(Option::<usize>::None);
 
     provide_context(CardsContext { cards, cards_write });
-    provide_context(DragAndDropContext { set_dropped_card });
+    provide_context(DragAndDropContext { dropped_card_write });
 
-    // Each list has a state (Todo, InProgress, Done)
     let card_lists = [CardState::Todo, CardState::InProgress, CardState::Done];
 
-    // Node refs for each card list to get the hover state
+    // These node refs are needed for the drag and drop effect
     let card_list_refs = card_lists
         .iter()
         .map(|state| (*state, create_node_ref::<Div>()))
         .collect::<Vec<_>>();
 
-    // Hover state for each card list
-    let card_list_hover = card_list_refs
+    // This vector of signals is used to check above which card list are the cards being dragged
+    // Each element is a tuple of the card state and a signal that is true when the card is above the list,
+    // e.g. (CardState::Todo, ~false, CardState::InProgress, ~true, CardState::Done, ~false)
+    let dragged_above_signals = card_list_refs
         .iter()
         .map(|(state, node_ref)| (*state, use_element_hover(*node_ref)))
         .collect::<Vec<_>>();
@@ -255,7 +256,7 @@ fn App() -> impl IntoView {
     create_effect(move |_| {
         if let Some(dropped_card) = dropped_card.get() {
             // Find the list that the card was dropped to
-            let dropped_to = card_list_hover
+            let dropped_to = dragged_above_signals
                 .iter()
                 .find(|(_, is_hovered)| is_hovered.get())
                 .map(|(state, _)| *state);
@@ -271,7 +272,7 @@ fn App() -> impl IntoView {
                     card.state = new_state;
                 });
             }
-            set_dropped_card(None);
+            dropped_card_write(None);
         }
     });
 
