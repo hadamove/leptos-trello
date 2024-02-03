@@ -2,6 +2,8 @@
 
 An experimental Trello clone built with Rust and WebAssembly.
 
+![Demo](./demo.gif)
+
 ## Setup
 
 The app currently runs on nightly version of Rust, see specific version in `rust-toolchain.toml` file.
