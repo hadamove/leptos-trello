@@ -87,7 +87,11 @@ fn CardView(card: Card) -> impl IntoView {
     let node_ref = create_node_ref::<Div>();
 
     let (is_dragging, set_is_dragging) = create_signal(false);
-    let DragAndDropContext { drop_card } = use_context().unwrap();
+    let CardsContext {
+        cards_write,
+        drop_card,
+        ..
+    } = use_context().unwrap();
 
     // Card dragging functionality using `leptos_use` crate, see docs for more info
     let UseDraggableReturn { style, .. } = use_draggable_with_options(
@@ -122,8 +126,6 @@ fn CardView(card: Card) -> impl IntoView {
             "bg-white rounded p-4 mb-4"
         }
     };
-
-    let CardsContext { cards_write, .. } = use_context::<CardsContext>().unwrap();
 
     view! {
         <div node_ref=node_ref class=div_class style=div_style>
@@ -210,6 +212,7 @@ fn CardList(card_state: CardState, node_ref: NodeRef<Div>) -> impl IntoView {
 struct CardsContext {
     cards: ReadSignal<Vec<Card>>,
     cards_write: WriteSignal<Vec<Card>>,
+    drop_card: Callback<Uuid>,
 }
 
 fn update_card(cards_write: WriteSignal<Vec<Card>>, id: Uuid, f: impl Fn(&mut Card)) {
@@ -221,16 +224,10 @@ fn update_card(cards_write: WriteSignal<Vec<Card>>, id: Uuid, f: impl Fn(&mut Ca
     });
 }
 
-#[derive(Clone)]
-struct DragAndDropContext {
-    drop_card: Callback<Uuid>,
-}
-
 #[component]
 fn App() -> impl IntoView {
     // Main signal containing all cards
     let (cards, cards_write) = create_signal(mock_data::get_mock_data());
-    provide_context(CardsContext { cards, cards_write });
 
     let card_lists = [CardState::Todo, CardState::InProgress, CardState::Done];
 
@@ -260,17 +257,22 @@ fn App() -> impl IntoView {
         }
     });
 
-    provide_context(DragAndDropContext { drop_card });
+    let context = CardsContext {
+        cards,
+        cards_write,
+        drop_card,
+    };
 
     view! {
-        <div class="container mx-auto px-4 py-8">
-            <div class="flex gap-4">
-                // Card lists
-                {card_list_refs.into_iter()
-                    .map(|(card_state, node_ref)| view! { <CardList card_state node_ref/> })
-                    .collect_view()}
+        <Provider value={context}>
+            <div class="container mx-auto px-4 py-8">
+                <div class="flex gap-4">
+                    {card_list_refs.into_iter()
+                        .map(|(card_state, node_ref)| view! { <CardList card_state node_ref/> })
+                        .collect_view()}
+                </div>
             </div>
-        </div>
+        </Provider>
     }
 }
 
