@@ -1,5 +1,7 @@
 # Leptos Trello Clone
 
+An experimental Trello clone built with Rust and WebAssembly.
+
 ## Setup
 
 The app currently runs on nightly version of Rust, see specific version in `rust-toolchain.toml` file.
@@ -8,3 +10,8 @@ During first time setup, run `bash setup.sh` to install dependencies (`wasm-bind
 
 Afterwards, running `trunk serve --open` will suffice.
 
+## To Do
+
+- [ ] Reorder cards within a list (column)
+- [ ] Adding new lists (columns)
+- [ ] Implement proper BE
