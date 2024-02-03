@@ -18,27 +18,23 @@ struct Card {
     name: String,
     description: String,
     state: CardState,
+    is_editing: bool,
 }
 
 #[component]
 fn CardWrapper(card: Card) -> impl IntoView {
-    let (is_editing, set_is_editing) = create_signal(false);
-    // This is a dirty workaround, do not do this in production
-    let is_new = card.description.is_empty() && card.name.is_empty();
-
-    view! {
-        {move || match is_editing.get() || is_new {
-            true => view! { <CardEdit card=card.clone() set_is_editing/>},
-            false => view! { <CardView card=card.clone() set_is_editing/>}
-        }}
+    if card.is_editing {
+        view! { <CardEdit card=card/>}
+    } else {
+        view! { <CardView card=card/>}
     }
 }
 
 #[component]
-fn CardEdit(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
+fn CardEdit(card: Card) -> impl IntoView {
     let name_ref = create_node_ref();
     let description_ref = create_node_ref();
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
 
     view! {
         <div class="flex flex-col gap-2 bg-white rounded p-4 mb-4">
@@ -60,22 +56,11 @@ fn CardEdit(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
                 <button
                     class="bg-green-100 rounded p-1 mt-2"
                     on:click=move |_| {
-                        let name = name_ref().unwrap().value();
-                        let description = description_ref().unwrap().value();
-
-                        let changed_card = Card {
-                            id: card.id,
-                            name,
-                            description,
-                            state: card.state,
-                        };
-
-                        set_cards.update(move |cards| {
-                            let card = cards.iter_mut().find(|card| card.id == changed_card.id).unwrap();
-                            *card = changed_card;
+                        update_card(cards_write, card.id, |c| {
+                            c.name = name_ref().unwrap().value();
+                            c.description = description_ref().unwrap().value();
+                            c.is_editing = false;
                         });
-
-                        set_is_editing(false);
                     }
                 >
                     "️💾️"
@@ -83,7 +68,11 @@ fn CardEdit(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
                 // Discard changes button
                 <button
                     class="bg-red-100 rounded p-1 mt-2"
-                    on:click=move |_| set_is_editing(false)
+                    on:click=move |_| {
+                        update_card(cards_write, card.id, |c| {
+                            c.is_editing = false;
+                        });
+                    }
                 >
                     "️❌️"
                 </button>
@@ -93,7 +82,7 @@ fn CardEdit(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
 }
 
 #[component]
-fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
+fn CardView(card: Card) -> impl IntoView {
     let node_ref = create_node_ref::<Div>();
 
     let (is_dragging, set_is_dragging) = create_signal(false);
@@ -116,7 +105,7 @@ fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
             }),
     );
 
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
 
     let div_class = move || {
         format!(
@@ -145,7 +134,11 @@ fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
                 // Edit card
                 <button
                     class="bg-blue-100 rounded p-1 mt-2"
-                    on:click=move |_| set_is_editing(true)
+                    on:click=move |_| {
+                        update_card(cards_write, card.id, |c| {
+                            c.is_editing = true;
+                        });
+                    }
                 >
                     "️✏️"
                 </button>
@@ -154,7 +147,7 @@ fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
                 <button
                     class="bg-red-100 rounded p-1 mt-2"
                     on:click=move |_| {
-                        set_cards.update(move |cards| {
+                        cards_write.update(move |cards| {
                             cards.retain(|c| c.id != card.id);
                         });
                     }
@@ -168,18 +161,19 @@ fn CardView(card: Card, set_is_editing: WriteSignal<bool>) -> impl IntoView {
 
 #[component]
 fn NewCardPlaceholder(card_state: CardState) -> impl IntoView {
-    let CardsContext { set_cards, .. } = use_context::<CardsContext>().expect("Cards not found");
+    let CardsContext { cards_write, .. } = use_context::<CardsContext>().expect("Cards not found");
     view! {
         // Add new card button
         <button
             class="border border-dashed border-gray-400 rounded hover:bg-gray-200 min-w-full"
             on:click=move |_| {
-                set_cards.update(move |cards| {
+                cards_write.update(move |cards| {
                     // Find the highest id and add 1 to it, do not do this in production
                     let next_id = cards.iter().map(|card| card.id).max().unwrap_or(0) + 1;
                     cards.push(Card {
                         id: next_id,
                         state: card_state,
+                        is_editing: true,
                         ..Default::default()
                     });
                 });
@@ -215,7 +209,16 @@ fn CardList(card_state: CardState, node_ref: NodeRef<Div>) -> impl IntoView {
 #[derive(Clone)]
 struct CardsContext {
     cards: ReadSignal<Vec<Card>>,
-    set_cards: WriteSignal<Vec<Card>>,
+    cards_write: WriteSignal<Vec<Card>>,
+}
+
+fn update_card(cards_write: WriteSignal<Vec<Card>>, id: usize, f: impl Fn(&mut Card)) {
+    cards_write.update(move |cards| {
+        let card = cards.iter_mut().find(|card| card.id == id);
+        if let Some(card) = card {
+            f(card);
+        }
+    });
 }
 
 #[derive(Clone)]
@@ -226,11 +229,11 @@ struct DragAndDropContext {
 #[component]
 fn App() -> impl IntoView {
     // Main signal containing all cards
-    let (cards, set_cards) = create_signal(utils::get_dummy_data());
+    let (cards, cards_write) = create_signal(utils::get_dummy_data());
     // Signal for the card that is currently being dropped to a new list
     let (dropped_card, set_dropped_card) = create_signal(Option::<usize>::None);
 
-    provide_context(CardsContext { cards, set_cards });
+    provide_context(CardsContext { cards, cards_write });
     provide_context(DragAndDropContext { set_dropped_card });
 
     // Each list has a state (Todo, InProgress, Done)
@@ -259,7 +262,7 @@ fn App() -> impl IntoView {
 
             if let Some(new_state) = dropped_to {
                 // Update the card state
-                set_cards.update(move |cards| {
+                cards_write.update(move |cards| {
                     let card = cards
                         .iter_mut()
                         .find(|card| card.id == dropped_card)
