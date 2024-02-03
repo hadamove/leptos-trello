@@ -3,7 +3,7 @@ use leptos::*;
 use leptos_use::*;
 use uuid::Uuid;
 
-mod utils;
+mod mock_data;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 enum CardState {
@@ -229,7 +229,7 @@ struct DragAndDropContext {
 #[component]
 fn App() -> impl IntoView {
     // Main signal containing all cards
-    let (cards, cards_write) = create_signal(utils::get_dummy_data());
+    let (cards, cards_write) = create_signal(mock_data::get_mock_data());
     provide_context(CardsContext { cards, cards_write });
 
     let card_lists = [CardState::Todo, CardState::InProgress, CardState::Done];

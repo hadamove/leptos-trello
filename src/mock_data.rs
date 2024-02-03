@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use crate::{Card, CardState};
 
-pub(crate) fn get_dummy_data() -> Vec<Card> {
+pub(crate) fn get_mock_data() -> Vec<Card> {
     vec![
         Card {
             id: Uuid::new_v4(),
