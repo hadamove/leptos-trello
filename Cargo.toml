@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 leptos = { version = "0.6.5", features = ["csr", "nightly"] }
 leptos-use = "0.10.0"
+uuid = { version = "1.7.0", features = ["v4"] }

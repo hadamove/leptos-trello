@@ -1,6 +1,7 @@
 use leptos::html::Div;
 use leptos::*;
 use leptos_use::*;
+use uuid::Uuid;
 
 mod utils;
 
@@ -14,7 +15,7 @@ enum CardState {
 
 #[derive(Clone, Default)]
 struct Card {
-    id: usize,
+    id: Uuid,
     name: String,
     description: String,
     state: CardState,
@@ -169,11 +170,8 @@ fn NewCardPlaceholder(card_state: CardState) -> impl IntoView {
             class="border border-dashed border-gray-400 rounded hover:bg-gray-200 min-w-full"
             on:click=move |_| {
                 cards_write.update(move |cards| {
-                    // TODO: uuid
-                    // Find the highest id and add 1 to it, do not do this in production
-                    let next_id = cards.iter().map(|card| card.id).max().unwrap_or(0) + 1;
                     cards.push(Card {
-                        id: next_id,
+                        id: Uuid::new_v4(),
                         state: card_state,
                         is_editing: true,
                         ..Default::default()
@@ -214,7 +212,7 @@ struct CardsContext {
     cards_write: WriteSignal<Vec<Card>>,
 }
 
-fn update_card(cards_write: WriteSignal<Vec<Card>>, id: usize, f: impl Fn(&mut Card)) {
+fn update_card(cards_write: WriteSignal<Vec<Card>>, id: Uuid, f: impl Fn(&mut Card)) {
     cards_write.update(move |cards| {
         let card = cards.iter_mut().find(|card| card.id == id);
         if let Some(card) = card {
@@ -225,7 +223,7 @@ fn update_card(cards_write: WriteSignal<Vec<Card>>, id: usize, f: impl Fn(&mut C
 
 #[derive(Clone)]
 struct DragAndDropContext {
-    drop_card: Callback<usize>,
+    drop_card: Callback<Uuid>,
 }
 
 #[component]
@@ -248,7 +246,7 @@ fn App() -> impl IntoView {
         .map(|(state, node_ref)| (*state, use_element_hover(*node_ref)))
         .collect::<Vec<_>>();
 
-    let drop_card = Callback::new(move |id: usize| {
+    let drop_card = Callback::new(move |id: Uuid| {
         let dropped_to = drop_zone_signals
             .iter()
             .find(|(_, is_hovered)| is_hovered.get())
