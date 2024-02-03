@@ -86,7 +86,7 @@ fn CardView(card: Card) -> impl IntoView {
     let node_ref = create_node_ref::<Div>();
 
     let (is_dragging, set_is_dragging) = create_signal(false);
-    let DragAndDropContext { dropped_card_write } = use_context().unwrap();
+    let DragAndDropContext { drop_card } = use_context().unwrap();
 
     // Card dragging functionality using `leptos_use` crate, see docs for more info
     let UseDraggableReturn { style, .. } = use_draggable_with_options(
@@ -99,7 +99,7 @@ fn CardView(card: Card) -> impl IntoView {
                 set_is_dragging(true);
             })
             .on_end(move |_| {
-                dropped_card_write.set(Some(card.id));
+                drop_card(card.id);
                 set_is_dragging(false);
             }),
     );
@@ -114,10 +114,12 @@ fn CardView(card: Card) -> impl IntoView {
     };
 
     // Add a shadow and pointer-events-none when dragging
-    let div_class = if is_dragging.get() {
-        "bg-white rounded p-4 mb-4 shadow-lg pointer-events-none max-w-xs min-w-[20%]"
-    } else {
-        "bg-white rounded p-4 mb-4"
+    let div_class = move || {
+        if is_dragging.get() {
+            "bg-white rounded p-4 mb-4 shadow-lg pointer-events-none max-w-xs min-w-[20%]"
+        } else {
+            "bg-white rounded p-4 mb-4"
+        }
     };
 
     let CardsContext { cards_write, .. } = use_context::<CardsContext>().unwrap();
@@ -223,18 +225,14 @@ fn update_card(cards_write: WriteSignal<Vec<Card>>, id: usize, f: impl Fn(&mut C
 
 #[derive(Clone)]
 struct DragAndDropContext {
-    dropped_card_write: WriteSignal<Option<usize>>,
+    drop_card: Callback<usize>,
 }
 
 #[component]
 fn App() -> impl IntoView {
     // Main signal containing all cards
     let (cards, cards_write) = create_signal(utils::get_dummy_data());
-    // Signal for the card that is currently being dropped to a new list
-    let (dropped_card, dropped_card_write) = create_signal(Option::<usize>::None);
-
     provide_context(CardsContext { cards, cards_write });
-    provide_context(DragAndDropContext { dropped_card_write });
 
     let card_lists = [CardState::Todo, CardState::InProgress, CardState::Done];
 
@@ -244,37 +242,27 @@ fn App() -> impl IntoView {
         .map(|state| (*state, create_node_ref::<Div>()))
         .collect::<Vec<_>>();
 
-    // This vector of signals is used to check above which card list are the cards being dragged
-    // Each element is a tuple of the card state and a signal that is true when the card is above the list,
-    // e.g. (CardState::Todo, ~false, CardState::InProgress, ~true, CardState::Done, ~false)
-    let dragged_above_signals = card_list_refs
+    // These signals are used to check if a card is being hovered over a drop zone
+    let drop_zone_signals = card_list_refs
         .iter()
         .map(|(state, node_ref)| (*state, use_element_hover(*node_ref)))
         .collect::<Vec<_>>();
 
-    // Drag and drop effect
-    create_effect(move |_| {
-        if let Some(dropped_card) = dropped_card.get() {
-            // Find the list that the card was dropped to
-            let dropped_to = dragged_above_signals
-                .iter()
-                .find(|(_, is_hovered)| is_hovered.get())
-                .map(|(state, _)| *state);
+    let drop_card = Callback::new(move |id: usize| {
+        let dropped_to = drop_zone_signals
+            .iter()
+            .find(|(_, is_hovered)| is_hovered.get())
+            .map(|(state, _)| *state);
 
-            if let Some(new_state) = dropped_to {
-                // Update the card state
-                cards_write.update(move |cards| {
-                    let card = cards
-                        .iter_mut()
-                        .find(|card| card.id == dropped_card)
-                        .unwrap();
-
-                    card.state = new_state;
-                });
-            }
-            dropped_card_write(None);
+        if let Some(new_state) = dropped_to {
+            cards_write.update(move |cards| {
+                let card = cards.iter_mut().find(|card| card.id == id).unwrap();
+                card.state = new_state;
+            });
         }
     });
+
+    provide_context(DragAndDropContext { drop_card });
 
     view! {
         <div class="container mx-auto px-4 py-8">
